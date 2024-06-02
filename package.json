@@ -9,6 +9,7 @@
     "csvtojson": "^2.0.10",
     "delay": "^5.0.0",
     "inquirer": "^8.0.0",
+    "json2csv": "^6.0.0-alpha.2",
     "puppeteer": "^18.0.5",
     "puppeteer-extra": "^3.3.4",
     "puppeteer-extra-plugin-stealth": "^2.11.1",

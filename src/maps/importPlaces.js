@@ -5,6 +5,7 @@ import fs from 'fs';
 import inquirer from "inquirer";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import { Parser } from 'json2csv';
 
 // (Attempt to) Prevent Google Account login from being blocked for using an automated browser
 puppeteer.use(StealthPlugin());
@@ -59,22 +60,22 @@ const importPlaces = async (argv) => {
   let { file, list, customList } = options;
 
   // Prepare places data
-  const places = [];
+  let places = [];
 
   if (file.match(/json$/i)) {
     const jsonFile = readFileSync(file);
     const data = JSON.parse(jsonFile);
 
     for (let item of data.features) {
-      let { ["Google Maps URL"]: url, Title: name } = item.properties;
-      places.push({ name, url });
+      let { ["Google Maps URL"]: url, Title: name,  Note: note, Comment: comment  } = item.properties;
+      places.push({ name, url, note, comment });
     }
   } else {
     const data = await csv().fromFile(file);
 
     for (let item of data) {
-      let { Title: name, URL: url } = item;
-      places.push({ name, url });
+      let { Title: name, URL: url,  Note: note, Comment: comment } = item;
+      places.push({ name, url, note, comment});
     }
   }
 
@@ -125,13 +126,12 @@ const importPlaces = async (argv) => {
   console.log(`${places.length} places found to import in ${file}`);
   console.log(`Importing Google Maps places to '${LIST_NAMES[list]}' list`);
 
-  for (let place of places) {
-    let { name, url } = place;
-
+  for (let i = 0; i < places.length; i++) {
+    let { name, url, note, comment } = places[i];
     await page.goto(url, { waitUntil: "load" });
 
     // Load Google Maps page for place
-    await page.evaluate(
+    let result = await page.evaluate(
       async (name, listIndex, listName) => {
         await window.delay(500);
         let saveButton = document.querySelector(
@@ -155,14 +155,22 @@ const importPlaces = async (argv) => {
               listCheckbox.click();
 
               message = `✔ Saved "${name}"`;
+              await window.log(message);
+              return true;  // Indicate success
             } else {
               message = `➡ Skipping "${name}" as it was already saved to this list`;
+              await window.log(message);
+              return false;  // Indicate that the operation was skipped
             }
           } else {
             message = `❌ Could not find '${listName}' list for "${name}"`;
+            await window.log(message);
+            return false;  // Indicate failure
           }
         } else {
           message = `❌ Could not find 'Save' button for "${name}"`;
+          await window.log(message);
+          return false;  // Indicate failure
         }
 
         await window.log(message);
@@ -173,6 +181,26 @@ const importPlaces = async (argv) => {
       customList || (typeof list === "string" ? LIST_INDEXES[list] : list),
       LIST_NAMES[list]
     );
+
+      // If the place was successfully saved, remove it from the array and update the CSV file
+    if (result) {
+      places.splice(i, 1);
+      i--;  // Decrement the index to account for the removed item
+
+      // Convert the remaining places back to CSV
+      const parser = new Parser({
+        fields: [
+          { label: 'Title', value: 'name' },
+          { label: 'Note', value: 'note' },
+          { label: 'URL', value: 'url' },
+          { label: 'Comment', value: 'comment' }
+        ]
+      });
+      const csv = parser.parse(places);
+
+      // Write the CSV data back to the file
+      fs.writeFileSync(file, csv);
+    }
   }
 
   exit();
