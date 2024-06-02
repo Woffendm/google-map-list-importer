@@ -1,6 +1,7 @@
 import csv from "csvtojson";
 import delay from "delay";
 import { readFileSync } from "fs";
+import fs from 'fs';
 import inquirer from "inquirer";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
@@ -94,17 +95,32 @@ const importPlaces = async (argv) => {
   await page.goto(LOGIN_URL);
   await page.setBypassCSP(true);
 
-  let { confirmlogin } = await inquirer.prompt([
-    {
-      type: "confirm",
-      message: "You can log in or abort now. Confirm when logged in.",
-      name: "confirmlogin",
-    },
-  ]);
-  if (confirmlogin == false) {
-    exit();
-    return;
-  }
+  // Selectors for the username and password input fields
+  const usernameSelector = 'input[type="email"]';
+  const passwordSelector = 'input[type="password"]';
+
+  let fileContents = fs.readFileSync('./credentials.json', 'utf8');
+  let data = JSON.parse(fileContents);
+
+  const username = data.username;
+  const password = data.password;
+
+  await page.waitForSelector(usernameSelector);
+  await page.type(usernameSelector, username);
+
+  // Click on the "Next" button
+  await page.click('#identifierNext');
+
+  // Wait for password field to be visible
+  await page.waitForSelector(passwordSelector, { visible: true });
+  await page.type(passwordSelector, password);
+
+  // Click on the "Next" button
+  await page.click('#passwordNext');
+
+  // Wait for 1 second
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
 
   console.log(`${places.length} places found to import in ${file}`);
   console.log(`Importing Google Maps places to '${LIST_NAMES[list]}' list`);
@@ -117,9 +133,9 @@ const importPlaces = async (argv) => {
     // Load Google Maps page for place
     await page.evaluate(
       async (name, listIndex, listName) => {
-        await window.delay(150);
+        await window.delay(500);
         let saveButton = document.querySelector(
-          "button[jsaction*='pane.placeActions.save']"
+          "button[data-value='Save']"
         );
         let message = "";
 
@@ -128,7 +144,7 @@ const importPlaces = async (argv) => {
           saveButton.click();
 
           // Select list to save to, after waiting for the selector menu to display
-          await window.delay(150);
+          await window.delay(500);
 
           let listCheckbox = document.querySelector(
             `[data-index="${listIndex}"][aria-checked="false"]`
