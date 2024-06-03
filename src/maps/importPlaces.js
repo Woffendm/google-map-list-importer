@@ -135,7 +135,7 @@ const importPlaces = async (argv) => {
       async (name, listIndex, listName) => {
         await window.delay(500);
         let saveButton = document.querySelector(
-          "button[data-value='Save']"
+          "button[data-value*='Save']"
         );
         let message = "";
 
@@ -146,9 +146,21 @@ const importPlaces = async (argv) => {
           // Select list to save to, after waiting for the selector menu to display
           await window.delay(500);
 
-          let listCheckbox = document.querySelector(
-            `[data-index="${listIndex}"][aria-checked="false"]`
-          );
+//          let listCheckbox = document.querySelector(
+//            `[data-index="${listIndex}"][aria-checked="false"]`
+//          );
+          let givenText = "Costa Rica 2024 NEW";
+
+          // Select all elements with a data-index attribute
+          let elements = document.querySelectorAll('[data-index]');
+
+          elements.forEach(element => {
+            Array.from(element.children).forEach(child => {
+              if (child.textContent.includes(givenText)) {
+                listCheckbox = element;  // This is the parent element you're looking for
+              }
+            });
+          });
 
           if (listCheckbox) {
             if (listCheckbox.ariaChecked === "false") {
